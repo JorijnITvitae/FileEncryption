@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Text;
 using System.Security.Cryptography;
+using System.Collections.Generic;
 
 namespace FileEncryption
 {
@@ -10,107 +11,99 @@ namespace FileEncryption
     /// </summary>
     public class EncryptDecrypt
     {
-        private string fileName;
-        private string original;
-        private RijndaelManaged rijndael;
-        private string encrypted;
-        private string decrypted;
+        // TODO: Write files in encrypt / decrypt functions.
+        // TODO: Get rid of password and just store the key and iv in plaintext as originalfilename_key.txt.
+        // TODO: Get rid of the password textbox and add a file selector for the key.txt.
 
-        public string FileName
-        {
-            get => this.fileName;
-        }
+        private string inputfile;
 
-        public string Original
+        public EncryptDecrypt(string inputfile)
         {
-            get => this.original;
-        }
-        
-        public string Encrypted
-        {
-            get => this.encrypted;
-        }
-
-        public string Decrypted
-        {
-            get => this.decrypted;
-        }
-
-        public byte[] Key
-        {
-            get => this.rijndael.Key;
-        }
-
-        public byte[] IV
-        {
-            get => this.rijndael.IV;
-        }
-
-        public EncryptDecrypt(string fileName)
-        {
-            this.fileName = fileName;
-            this.original = File.ReadAllText(fileName);
-            this.rijndael = new RijndaelManaged();
-            this.rijndael.GenerateKey();
-            this.rijndael.GenerateIV();
+            this.inputfile = inputfile;
         }
 
         public void Encrypt()
         {
-            // Check variables.
-            if (this.Original == null || this.Original.Length <= 0)
-                throw new ArgumentNullException("Input Text");
+            byte[] input = File.ReadAllBytes(this.inputfile);
 
-            if (this.Key == null || this.Key.Length <= 0)
-                throw new ArgumentNullException("Key");
-
-            if (this.IV == null || this.IV.Length <= 0)
-                throw new ArgumentNullException("IV");
-
-            // Create an encryptor to perform the stream transform.
-            ICryptoTransform encryptor = this.rijndael.CreateEncryptor(this.Key, this.IV);
-
-            // Create the streams used for encryption.
-            using (MemoryStream msEncrypt = new MemoryStream())
+            using (var aes = new AesManaged())
             {
-                using (CryptoStream csEncrypt = new CryptoStream(msEncrypt, encryptor, CryptoStreamMode.Write))
+                // Generate a new key and IV.
+                aes.GenerateKey();
+                aes.GenerateIV();
+                aes.BlockSize = 128;
+                aes.Mode = CipherMode.CBC;
+                aes.Padding = PaddingMode.PKCS7;
+
+                // Write the key and IV to a file.
+                List<byte> key_and_iv = new List<byte>();
+                key_and_iv.AddRange(aes.Key);
+                key_and_iv.AddRange(aes.IV);
+                File.WriteAllBytes(this.inputfile + ".encrypted.key", key_and_iv.ToArray());
+
+                // Create an encryptor to perform the stream transform.
+                ICryptoTransform encryptor = aes.CreateEncryptor();
+
+                // Create the streams used for encryption.
+                using (var msEncrypt = new MemoryStream())
                 {
-                    using (StreamWriter swEncrypt = new StreamWriter(csEncrypt))
+                    using (var csEncrypt = new CryptoStream(msEncrypt, encryptor, CryptoStreamMode.Write))
                     {
-                        //Write all data to the stream.
-                        swEncrypt.Write(this.Original);
+                        using (var swEncrypt = new StreamWriter(csEncrypt))
+                        {
+                            // Write the input to the encryting stream.
+                            swEncrypt.Write(input);
+                        }
                     }
 
-                    // Read the encrypted bytes from the encrypting stream and place them in a string.
-                    this.encrypted = msEncrypt.ToString();
+                    using (var csEncrypt = new CryptoStream(msEncrypt, encryptor, CryptoStreamMode.Read))
+                    {
+                        using (var srEncrypt = new StreamReader(csEncrypt))
+                        {
+                            // Read the encrypted bytes from the encrypting stream.
+                            //List<byte> encrypted = new List<byte>(Encoding.ASCII.GetBytes(srEncrypt.ReadToEnd()));
+
+                            // Adding padding bytes.
+                            //for (byte p = 0; encrypted.Count < 16 || encrypted.Count % 16 != 0; ++p) encrypted.Add(p);
+
+                            // And finally write the output to a file.
+                            //File.WriteAllBytes(this.inputfile + ".encrypted", encrypted.ToArray());
+
+                            byte[] encrypted = Encoding.ASCII.GetBytes(srEncrypt.ReadToEnd());
+                            File.WriteAllBytes(this.inputfile + ".encrypted", encrypted);
+                        }
+                    }
                 }
             }
         }
 
         public void Decrypt()
         {
-            // Check variables.
-            if (this.Original == null || this.Original.Length <= 0)
-                throw new ArgumentNullException("Input Text");
+            List<byte> input = new List<byte>(File.ReadAllBytes(this.inputfile));
+            List<byte> key_and_iv = new List<byte>(File.ReadAllBytes(this.inputfile + ".key"));
 
-            if (this.Key == null || this.Key.Length <= 0)
-                throw new ArgumentNullException("Key");
-
-            if (this.IV == null || this.IV.Length <= 0)
-                throw new ArgumentNullException("IV");
-
-            // Create a decryptor to perform the stream transform.
-            ICryptoTransform decryptor = this.rijndael.CreateDecryptor(this.Key, this.IV);
-
-            // Create the streams used for decryption.
-            using (MemoryStream msDecrypt = new MemoryStream(Encoding.ASCII.GetBytes(this.Original)))
+            using (var aes = new AesManaged())
             {
-                using (CryptoStream csDecrypt = new CryptoStream(msDecrypt, decryptor, CryptoStreamMode.Read))
+                // Use the key and IV from the key file.
+                aes.Key = key_and_iv.GetRange(0, 32).ToArray();
+                aes.IV = key_and_iv.GetRange(32, 16).ToArray();
+
+                // Create a decryptor to perform the stream transform.
+                ICryptoTransform decryptor = aes.CreateDecryptor();
+
+                // Create the streams used for decryption.
+                using (var msDecrypt = new MemoryStream(input.ToArray()))
                 {
-                    using (StreamReader srDecrypt = new StreamReader(csDecrypt))
+                    using (var csDecrypt = new CryptoStream(msDecrypt, decryptor, CryptoStreamMode.Read))
                     {
-                        // Read the decrypted bytes from the decrypting stream and place them in a string.
-                        this.decrypted = srDecrypt.ReadToEnd();
+                        using (var srDecrypt = new StreamReader(csDecrypt))
+                        {
+                            // Read the decrypted bytes from the decrypting stream.
+                            byte[] decrypted = Encoding.ASCII.GetBytes(srDecrypt.ReadToEnd());
+
+                            // And finally write the output to a file.
+                            File.WriteAllBytes(this.inputfile + ".decrypted", decrypted);
+                        }
                     }
                 }
             }

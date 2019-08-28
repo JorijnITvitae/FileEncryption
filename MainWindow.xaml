@@ -6,13 +6,11 @@
         xmlns:local="clr-namespace:FileEncryption"
         mc:Ignorable="d"
         Title="Encryption Thing"
-        Height="133" Width="300">
+        Height="91" Width="300">
 
     <Border Margin="4">
 
         <StackPanel>
-
-            <TextBox x:Name="TextBox_Password" Initialized="TextBox_Password_Initialized" GotFocus="TextBox_Password_GotFocus" LostFocus="TextBox_Password_LostFocus" FontSize="24" Margin="4" />
 
             <Grid>
 

@@ -32,8 +32,8 @@ namespace FileEncryption
             OpenFileDialog dialog = new OpenFileDialog();
             if (dialog.ShowDialog() == true)
             {
-                EncryptDecrypt encryptDecrypt = new EncryptDecrypt(dialog.FileName);
-                MessageBox.Show(File.ReadAllText(dialog.FileName));
+                EncryptDecrypt encryptor = new EncryptDecrypt(dialog.FileName);
+                encryptor.Encrypt();
             }
         }
 
@@ -42,32 +42,8 @@ namespace FileEncryption
             OpenFileDialog dialog = new OpenFileDialog();
             if (dialog.ShowDialog() == true)
             {
-                EncryptDecrypt encryptDecrypt = new EncryptDecrypt(dialog.FileName);
-                MessageBox.Show(File.ReadAllText(dialog.FileName));
-            }
-        }
-
-        private void TextBox_Password_Initialized(object sender, EventArgs e)
-        {
-            TextBox_Password.Text = "Password";
-            TextBox_Password.Foreground = Brushes.Silver;
-        }
-
-        private void TextBox_Password_GotFocus(object sender, RoutedEventArgs e)
-        {
-            if (TextBox_Password.Foreground == Brushes.Silver)
-            {
-                TextBox_Password.Text = "";
-                TextBox_Password.Foreground = Brushes.Black;
-            }
-        }
-
-        private void TextBox_Password_LostFocus(object sender, RoutedEventArgs e)
-        {
-            if (TextBox_Password.Text == "")
-            {
-                TextBox_Password.Text = "Password";
-                TextBox_Password.Foreground = Brushes.Silver;
+                EncryptDecrypt decryptor = new EncryptDecrypt(dialog.FileName);
+                decryptor.Decrypt();
             }
         }
     }
