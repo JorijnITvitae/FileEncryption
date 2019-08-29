@@ -1,111 +1,66 @@
-using System;
 using System.IO;
-using System.Text;
 using System.Security.Cryptography;
 using System.Collections.Generic;
 
 namespace FileEncryption
 {
-    /// <summary>
-    /// Does encryption and decrytion of files using the RijndaelManaged class
-    /// </summary>
+    /// Does encryption and decrytion of files using the AesCryptoServiceProvider class.
     public class EncryptDecrypt
     {
-        // TODO: Write files in encrypt / decrypt functions.
-        // TODO: Get rid of password and just store the key and iv in plaintext as originalfilename_key.txt.
-        // TODO: Get rid of the password textbox and add a file selector for the key.txt.
-
-        private string inputfile;
-
-        public EncryptDecrypt(string inputfile)
+        public enum mode
         {
-            this.inputfile = inputfile;
+            ENCRYPT,
+            DECRYPT,
         }
 
-        public void Encrypt()
+        public EncryptDecrypt(string inputfile, mode cryptomode)
         {
-            byte[] input = File.ReadAllBytes(this.inputfile);
+            // Read the input file.
+            byte[] input = File.ReadAllBytes(inputfile);
 
-            using (var aes = new AesManaged())
+            // Create a new crypto service provider.
+            var aes = new AesCryptoServiceProvider();
+            aes.Mode = CipherMode.CBC;
+            aes.Padding = PaddingMode.PKCS7;
+
+            if (cryptomode == mode.ENCRYPT)
             {
                 // Generate a new key and IV.
                 aes.GenerateKey();
                 aes.GenerateIV();
-                aes.BlockSize = 128;
-                aes.Mode = CipherMode.CBC;
-                aes.Padding = PaddingMode.PKCS7;
 
                 // Write the key and IV to a file.
                 List<byte> key_and_iv = new List<byte>();
                 key_and_iv.AddRange(aes.Key);
                 key_and_iv.AddRange(aes.IV);
-                File.WriteAllBytes(this.inputfile + ".encrypted.key", key_and_iv.ToArray());
+                File.WriteAllBytes(inputfile + ".encrypted.key", key_and_iv.ToArray());
 
-                // Create an encryptor to perform the stream transform.
-                ICryptoTransform encryptor = aes.CreateEncryptor();
+                // Perform the encryption.
+                var ms = new MemoryStream();
+                var en = aes.CreateEncryptor();
+                var cs = new CryptoStream(ms, en, CryptoStreamMode.Write);
+                cs.Write(input, 0, input.Length);
+                cs.FlushFinalBlock();
 
-                // Create the streams used for encryption.
-                using (var msEncrypt = new MemoryStream())
-                {
-                    using (var csEncrypt = new CryptoStream(msEncrypt, encryptor, CryptoStreamMode.Write))
-                    {
-                        using (var swEncrypt = new StreamWriter(csEncrypt))
-                        {
-                            // Write the input to the encryting stream.
-                            swEncrypt.Write(input);
-                        }
-                    }
-
-                    using (var csEncrypt = new CryptoStream(msEncrypt, encryptor, CryptoStreamMode.Read))
-                    {
-                        using (var srEncrypt = new StreamReader(csEncrypt))
-                        {
-                            // Read the encrypted bytes from the encrypting stream.
-                            //List<byte> encrypted = new List<byte>(Encoding.ASCII.GetBytes(srEncrypt.ReadToEnd()));
-
-                            // Adding padding bytes.
-                            //for (byte p = 0; encrypted.Count < 16 || encrypted.Count % 16 != 0; ++p) encrypted.Add(p);
-
-                            // And finally write the output to a file.
-                            //File.WriteAllBytes(this.inputfile + ".encrypted", encrypted.ToArray());
-
-                            byte[] encrypted = Encoding.ASCII.GetBytes(srEncrypt.ReadToEnd());
-                            File.WriteAllBytes(this.inputfile + ".encrypted", encrypted);
-                        }
-                    }
-                }
+                // Write the encrypted bytes to a file.
+                File.WriteAllBytes(inputfile + ".encrypted", ms.ToArray());
             }
-        }
-
-        public void Decrypt()
-        {
-            List<byte> input = new List<byte>(File.ReadAllBytes(this.inputfile));
-            List<byte> key_and_iv = new List<byte>(File.ReadAllBytes(this.inputfile + ".key"));
-
-            using (var aes = new AesManaged())
+            else
             {
-                // Use the key and IV from the key file.
+                // Read the key and IV from a file.
+                List<byte> key_and_iv = new List<byte>(File.ReadAllBytes(inputfile + ".key"));
                 aes.Key = key_and_iv.GetRange(0, 32).ToArray();
                 aes.IV = key_and_iv.GetRange(32, 16).ToArray();
 
-                // Create a decryptor to perform the stream transform.
-                ICryptoTransform decryptor = aes.CreateDecryptor();
+                // Perform the decryption.
+                var ms = new MemoryStream();
+                var de = aes.CreateDecryptor();
+                var cs = new CryptoStream(ms, de, CryptoStreamMode.Write);
+                cs.Write(input, 0, input.Length);
+                cs.FlushFinalBlock();
 
-                // Create the streams used for decryption.
-                using (var msDecrypt = new MemoryStream(input.ToArray()))
-                {
-                    using (var csDecrypt = new CryptoStream(msDecrypt, decryptor, CryptoStreamMode.Read))
-                    {
-                        using (var srDecrypt = new StreamReader(csDecrypt))
-                        {
-                            // Read the decrypted bytes from the decrypting stream.
-                            byte[] decrypted = Encoding.ASCII.GetBytes(srDecrypt.ReadToEnd());
-
-                            // And finally write the output to a file.
-                            File.WriteAllBytes(this.inputfile + ".decrypted", decrypted);
-                        }
-                    }
-                }
+                // Write the decrypted bytes to a file.
+                File.WriteAllBytes(inputfile + ".decrypted", ms.ToArray());
             }
         }
     }
